@@ -28,3 +28,16 @@ Pragmatic calls made where the brief was ambiguous. Newest at the bottom.
 19. **Settings save runs under the agency user's own session (cookie client), not the service role** — agency RLS already permits full client writes, so acting as the user keeps the audit trail honest. Service role is reserved for genuinely privileged operations (invites, role assignment).
 20. **Onboarding checklist is computed live** from documents/access_grants/invoices/onboarding_responses/uptime_checks rather than stored flags — no drift, always reflects reality.
 21. **status → onboarding** currently records `client.onboarding_started` in activity_log as the trigger point; the actual welcome email sequence wiring lands in Phase 4 (sequence engine).
+
+## Phase 1 review fixes — 2026-07-06
+
+An adversarial multi-agent review (4 dimensions × per-finding verification) surfaced 9 confirmed issues; all fixed:
+
+22. **Client column privacy (migration `core/0002_client_self_view.sql`).** `clients_own_read` let a client read *every* column of their own row via direct PostgREST — including `stripe_customer_id`, `hosting_notes`, `domain_registrar`, `domain_renewal_date`. Since agency + client share the `authenticated` role, column GRANTs can't separate them, so we dropped the client base-table read policy and expose client-safe columns through the owner-privileged `client_self` view (scoped by `current_client_id()`). `requireClient()` now reads `client_self`. Verified by 3 new local RLS assertions (49/49 total).
+23. **Open redirect in `/auth/callback` and `/auth/confirm`.** The `next` param was passed to `new URL(next, appUrl())`, so `?next=https://evil.com` or `//evil.com` redirected freshly-authenticated users off-site. Added `safeInternalPath()` — only same-origin paths (single leading `/`, not `//` or `/\`) are honoured.
+24. **Settings save crash on malformed logo URL.** A scheme-only `logo_url` ("https://") passed the loose regex but threw in a downstream `brandingSchema.parse()`, 500-ing the action. Now both `logo_url` and `website_url` validate with the same `z.url()` the branding schema uses, and the branding object is built from already-validated fields (no throwing re-parse).
+25. **Member-invite email enumeration.** `inviteClientMember` returned a distinct "already has an account" message, an oracle a client_owner could use to probe arbitrary emails. Now returns the same neutral response whether or not the address exists (mirrors the login action).
+26. **Unvalidated `domain_renewal_date`.** Free-text reached a Postgres `date` column and failed the whole atomic save with a raw error. Now validated as `YYYY-MM-DD` + a real date.
+27. **Slug-collision handling.** Replaced the pre-check-then-insert (TOCTOU race + unchecked final candidate) with atomic insert-and-retry on unique-violation (23505) and a friendly exhaustion message.
+28. **Unchecked audit inserts** in `updateClientSettings` now log failures via `console.error` instead of silently dropping.
+29. **Month-boundary timezone bug.** "Created this month" built the cutoff from local time; on a non-UTC host it miscounted boundary-hour requests. Now uses `Date.UTC(...)` to match the UTC-stored `created_at`.

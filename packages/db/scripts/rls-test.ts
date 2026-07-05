@@ -126,11 +126,15 @@ async function main(): Promise<void> {
 
   // ── Client A (Blush & Co owner) ──────────────────────────────────────────
   console.log("\nclient A (blush owner):");
+  // Clients cannot read the base clients table (agency-internal columns like
+  // stripe_customer_id/hosting_notes live there); they read a safe projection
+  // through the client_self view instead.
+  expectEmpty("client cannot read the base clients table", await clientA.from("clients").select("id"));
   expectRows(
-    "client sees exactly their own client row",
-    await clientA.from("clients").select("id"),
+    "client reads exactly their own row via client_self",
+    await clientA.from("client_self").select("id"),
     (r) => r.length === 1 && (r as { id: string }[])[0]!.id === blushId,
-    "expected only the blush row",
+    "expected only the blush row from client_self",
   );
   expectNoEffect(
     "client cannot update their client row",
@@ -255,9 +259,9 @@ async function main(): Promise<void> {
     "saw rows from another tenant",
   );
   expectRows(
-    "client B cannot see blush's client row",
-    await clientB.from("clients").select("id"),
-    (r) => (r as { id: string }[]).every((x) => x.id === willowId),
+    "client B reads only their own row via client_self",
+    await clientB.from("client_self").select("id"),
+    (r) => r.length === 1 && (r as { id: string }[])[0]!.id === willowId,
     "saw another tenant's client row",
   );
   expectEmpty("client B sees none of blush's documents", await clientB.from("documents").select("id").eq("client_id", blushId));

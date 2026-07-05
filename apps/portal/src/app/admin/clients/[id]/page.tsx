@@ -34,6 +34,12 @@ function tabHref(id: string, tab: TabKey): string {
   return tab === "overview" ? `/admin/clients/${id}` : `/admin/clients/${id}?tab=${tab}`;
 }
 
+/** UTC start of the current month, matching created_at (stored as UTC timestamptz). */
+function startOfMonthUtc(): string {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+}
+
 function formatDate(value: string | null): string {
   if (!value) return "—";
   return new Date(value).toLocaleDateString("en-GB", {
@@ -88,7 +94,7 @@ export default async function ClientDetailPage({
       .from("update_requests")
       .select("id", { count: "exact", head: true })
       .eq("client_id", id)
-      .gte("created_at", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()),
+      .gte("created_at", startOfMonthUtc()),
     supabase.from("documents").select("kind, status").eq("client_id", id),
     supabase.from("access_grants").select("status").eq("client_id", id),
     supabase

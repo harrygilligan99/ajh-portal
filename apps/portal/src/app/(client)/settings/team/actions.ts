@@ -50,13 +50,13 @@ export async function inviteClientMember(
     },
   });
   if (invite.error) {
-    const already = /already/i.test(invite.error.message);
-    return {
-      ok: false,
-      message: already
-        ? "That email already has a portal account."
-        : `Could not create the invite: ${invite.error.message}`,
-    };
+    // Don't reveal whether the address already has an account — that would let a
+    // client_owner probe arbitrary emails across tenants. Mirror the neutral
+    // success response instead.
+    if (/already|registered|exists/i.test(invite.error.message)) {
+      return { ok: true, message: `Invite sent to ${email}.` };
+    }
+    return { ok: false, message: `Could not create the invite: ${invite.error.message}` };
   }
 
   const tokenHash = invite.data.properties?.hashed_token;

@@ -418,7 +418,25 @@ export interface Database {
         Relationships: [];
       };
     };
-    Views: { [_ in never]: never };
+    Views: {
+      // Client-safe projection of clients (agency-internal columns omitted),
+      // scoped to current_client_id(). See migrations/core/0002_client_self_view.sql.
+      client_self: {
+        Row: {
+          id: string;
+          name: string;
+          slug: string;
+          status: ClientStatus;
+          plan: ClientPlan;
+          marketing_plan: boolean;
+          branding: Json;
+          enabled_modules: Json;
+          monthly_update_quota: number;
+          website_url: string | null;
+        };
+        Relationships: [];
+      };
+    };
     Functions: {
       is_agency: { Args: Record<string, never>; Returns: boolean };
       current_client_id: { Args: Record<string, never>; Returns: string | null };
@@ -442,6 +460,7 @@ export interface Database {
 
 // Convenience row aliases
 export type ClientRow = Database["public"]["Tables"]["clients"]["Row"];
+export type ClientSelfRow = Database["public"]["Views"]["client_self"]["Row"];
 export type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
 export type UpdateRequestRow = Database["public"]["Tables"]["update_requests"]["Row"];
 export type MessageRow = Database["public"]["Tables"]["messages"]["Row"];

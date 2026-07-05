@@ -38,25 +38,35 @@ export async function createClientWithOwner(
 
   const admin = createSupabaseAdminClient();
 
-  // Find a free slug: base, base-2, base-3 …
+  // Insert with base slug, then base-2, base-3 … retrying only on a unique
+  // violation (23505). The atomic insert-and-retry closes the TOCTOU race a
+  // pre-check would leave open and never inserts an unverified slug.
   const base = slugify(name);
   if (!base) return { ok: false, message: "That business name doesn't produce a usable slug." };
-  let slug = base;
-  for (let i = 2; i <= 20; i++) {
-    const { data: existing } = await admin.from("clients").select("id").eq("slug", slug).maybeSingle();
-    if (!existing) break;
-    slug = `${base}-${i}`;
-  }
 
-  const inserted = await admin
-    .from("clients")
-    .insert({ name, slug, plan, status: "lead" })
-    .select("id, name")
-    .single();
-  if (inserted.error) {
-    return { ok: false, message: `Could not create the client: ${inserted.error.message}` };
+  let client: { id: string; name: string } | null = null;
+  for (let attempt = 0; attempt < 8 && !client; attempt++) {
+    const slug = attempt === 0 ? base : `${base}-${attempt + 1}`;
+    const res = await admin
+      .from("clients")
+      .insert({ name, slug, plan, status: "lead" })
+      .select("id, name")
+      .single();
+    if (!res.error) {
+      client = res.data;
+      break;
+    }
+    if (res.error.code !== "23505") {
+      return { ok: false, message: `Could not create the client: ${res.error.message}` };
+    }
+    // slug taken → try the next suffix
   }
-  const client = inserted.data;
+  if (!client) {
+    return {
+      ok: false,
+      message: "Couldn't find a free URL for that name — try a more specific business name.",
+    };
+  }
 
   const rollbackClient = async () => {
     await admin.from("clients").delete().eq("id", client.id);

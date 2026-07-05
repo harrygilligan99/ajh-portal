@@ -5,7 +5,7 @@ import {
   type ModuleSlug,
   type NavItem,
 } from "@ajh/config";
-import type { ClientRow } from "@ajh/db";
+import type { Json } from "@ajh/db";
 import * as billing from "@ajh/module-billing";
 import * as documents from "@ajh/module-documents";
 import * as marketing from "@ajh/module-marketing";
@@ -36,17 +36,17 @@ export function getModule(slug: string): LoadedModule | null {
 }
 
 /** Parse a client's enabled_modules jsonb; unknown slugs are dropped. */
-export function enabledModuleSlugs(client: ClientRow): ModuleSlug[] {
+export function enabledModuleSlugs(client: { enabled_modules: Json }): ModuleSlug[] {
   const parsed = enabledModulesSchema.safeParse(client.enabled_modules);
   return parsed.success ? parsed.data : [];
 }
 
-export function enabledModules(client: ClientRow): LoadedModule[] {
+export function enabledModules(client: { enabled_modules: Json }): LoadedModule[] {
   const slugs = enabledModuleSlugs(client);
   return ALL_MODULES.filter((m) => slugs.includes(m.manifest.slug));
 }
 
-export function clientNavItems(client: ClientRow): NavItem[] {
+export function clientNavItems(client: { enabled_modules: Json }): NavItem[] {
   return enabledModules(client).flatMap((m) => m.manifest.navItems.client);
 }
 

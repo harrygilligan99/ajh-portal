@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { isAgencyRole } from "@ajh/config";
-import type { ClientRow, ProfileRow } from "@ajh/db";
+import type { ClientSelfRow, ProfileRow } from "@ajh/db";
 import { createSupabaseServerClient } from "./supabase/server";
 
 export interface SessionContext {
@@ -10,7 +10,8 @@ export interface SessionContext {
 }
 
 export interface ClientSessionContext extends SessionContext {
-  client: ClientRow;
+  /** Client-safe columns only (agency-internal fields are not exposed to clients). */
+  client: ClientSelfRow;
 }
 
 /** Current user + profile, or null when signed out / profile missing. */
@@ -46,9 +47,11 @@ export async function requireClient(): Promise<ClientSessionContext> {
   if (isAgencyRole(ctx.profile.role)) redirect("/admin");
   if (!ctx.profile.client_id) redirect("/no-access");
 
+  // Clients read their own record through the client_self view, which exposes
+  // only client-safe columns (see migrations/core/0002_client_self_view.sql).
   const supabase = await createSupabaseServerClient();
   const { data: client } = await supabase
-    .from("clients")
+    .from("client_self")
     .select("*")
     .eq("id", ctx.profile.client_id)
     .single();

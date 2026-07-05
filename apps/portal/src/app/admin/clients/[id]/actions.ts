@@ -4,7 +4,6 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import {
   MODULE_SLUGS,
-  brandingSchema,
   clientPlanSchema,
   clientStatusSchema,
   isAgencyRole,
@@ -23,6 +22,18 @@ const optionalText = z
   .transform((v) => (v.length === 0 ? null : v))
   .nullable();
 
+// Optional http(s) URL — uses the same z.url() the branding schema uses, so the
+// stored branding value never fails a stricter downstream check.
+const optionalHttpUrl = z
+  .string()
+  .trim()
+  .transform((v) => (v.length === 0 ? null : v))
+  .nullable()
+  .refine(
+    (v) => v === null || (z.url().safeParse(v).success && /^https?:\/\//i.test(v)),
+    "Enter a valid http(s) URL",
+  );
+
 const settingsSchema = z.object({
   status: clientStatusSchema,
   plan: clientPlanSchema,
@@ -32,22 +43,18 @@ const settingsSchema = z.object({
   primary_color: z
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/, "Primary colour must be a #rrggbb hex value"),
-  logo_url: z
-    .string()
-    .trim()
-    .transform((v) => (v.length === 0 ? null : v))
-    .nullable()
-    .refine((v) => v === null || /^https?:\/\//.test(v), "Logo must be an http(s) URL"),
-  website_url: optionalText.refine(
-    (v) => v === null || /^https?:\/\//.test(v),
-    "Website must be an http(s) URL",
-  ),
+  logo_url: optionalHttpUrl,
+  website_url: optionalHttpUrl,
   domain_registrar: optionalText,
   domain_renewal_date: z
     .string()
     .trim()
     .transform((v) => (v.length === 0 ? null : v))
-    .nullable(),
+    .nullable()
+    .refine(
+      (v) => v === null || (/^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v))),
+      "Renewal date must be a valid YYYY-MM-DD date",
+    ),
   hosting_notes: optionalText,
 });
 
@@ -94,7 +101,9 @@ export async function updateClientSettings(
     .eq("id", clientId as string)
     .single();
 
-  const branding = brandingSchema.parse({ logo_url: v.logo_url, primary_color: v.primary_color });
+  // logo_url and primary_color are already validated above, so this is a safe
+  // literal — no throwing re-parse.
+  const branding = { logo_url: v.logo_url, primary_color: v.primary_color };
 
   const { error } = await supabase
     .from("clients")
@@ -115,24 +124,26 @@ export async function updateClientSettings(
     return { ok: false, message: `Could not save: ${error.message}` };
   }
 
-  await supabase.from("activity_log").insert({
+  const { error: logError } = await supabase.from("activity_log").insert({
     client_id: clientId as string,
     actor_id: ctx.user.id,
     verb: "client.settings_updated",
     subject_type: "client",
     subject_id: clientId as string,
   });
+  if (logError) console.error(`activity_log insert failed: ${logError.message}`);
 
   // The welcome sequence fires on status → onboarding; the sequence engine
   // itself lands in Phase 4, so for now we just record the trigger point.
   if (before && before.status !== "onboarding" && v.status === "onboarding") {
-    await supabase.from("activity_log").insert({
+    const { error: transitionError } = await supabase.from("activity_log").insert({
       client_id: clientId as string,
       actor_id: ctx.user.id,
       verb: "client.onboarding_started",
       subject_type: "client",
       subject_id: clientId as string,
     });
+    if (transitionError) console.error(`activity_log insert failed: ${transitionError.message}`);
   }
 
   revalidatePath(`/admin/clients/${clientId}`);

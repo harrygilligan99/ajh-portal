@@ -1,9 +1,9 @@
 import { brandingSchema, type Branding } from "@ajh/config";
-import type { ClientRow } from "@ajh/db";
+import type { Json } from "@ajh/db";
 
 const FALLBACK: Branding = { logo_url: null, primary_color: "#0f172a" };
 
-export function brandingFromClient(client: ClientRow): Branding {
+export function brandingFromClient(client: { branding: Json }): Branding {
   const parsed = brandingSchema.safeParse(client.branding);
   return parsed.success ? parsed.data : FALLBACK;
 }

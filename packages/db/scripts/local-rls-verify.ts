@@ -171,6 +171,10 @@ async function main() {
     record("agency sees email_log", count(await as(AGENCY, (t) => t`select count(*)::int n from email_log`)) >= 1);
     record("agency sees scheduled_emails", count(await as(AGENCY, (t) => t`select count(*)::int n from scheduled_emails`)) >= 1);
     record("agency sees activity_log", count(await as(AGENCY, (t) => t`select count(*)::int n from activity_log`)) >= 1);
+    record(
+      "agency can read agency-internal client columns",
+      (await as(AGENCY, (t) => t`select stripe_customer_id, hosting_notes from clients limit 1`)).error === null,
+    );
     {
       const r = await as(AGENCY, (t) => t`update clients set hosting_notes = 'x' where id = ${ids.blush} returning id`);
       record("agency can update a client", r.error === null && Array.isArray(r.rows) && (r.rows as unknown[]).length === 1, r.error ?? undefined);
@@ -182,7 +186,12 @@ async function main() {
 
     // ── client A (blush) ───────────────────────────────────────────────────────
     console.log("\nclient A (blush owner):");
-    record("client sees exactly 1 client", count(await as(CLIENT_A, (t) => t`select count(*)::int n from clients`)) === 1);
+    record("client cannot read the base clients table (0 rows)", count(await as(CLIENT_A, (t) => t`select count(*)::int n from clients`)) === 0);
+    record("client reads exactly 1 row from client_self", count(await as(CLIENT_A, (t) => t`select count(*)::int n from client_self`)) === 1);
+    record(
+      "client_self does not expose agency-internal columns",
+      (await as(CLIENT_A, (t) => t`select stripe_customer_id from client_self`)).error !== null,
+    );
     {
       const r = await as(CLIENT_A, (t) => t`update clients set name = 'Hacked' where id = ${ids.blush} returning id`);
       const affected = Array.isArray(r.rows) ? (r.rows as unknown[]).length : 0;
@@ -280,8 +289,9 @@ async function main() {
       count(await as(CLIENT_B, (t) => t`select count(*)::int n from update_requests where client_id <> ${ids.willow}`)) === 0,
     );
     record(
-      "client B sees only willow client row",
-      count(await as(CLIENT_B, (t) => t`select count(*)::int n from clients where id <> ${ids.willow}`)) === 0,
+      "client B reads only their own row via client_self",
+      count(await as(CLIENT_B, (t) => t`select count(*)::int n from client_self where id = ${ids.willow}`)) === 1 &&
+        count(await as(CLIENT_B, (t) => t`select count(*)::int n from client_self where id <> ${ids.willow}`)) === 0,
     );
     record("client B sees none of blush's documents", count(await as(CLIENT_B, (t) => t`select count(*)::int n from documents where client_id = ${ids.blush}`)) === 0);
     record("client B sees none of blush's messages", count(await as(CLIENT_B, (t) => t`select count(*)::int n from messages where client_id = ${ids.blush}`)) === 0);
