@@ -76,6 +76,25 @@ pnpm test:rls       # allowed/denied matrix as agency, two clients and anon — 
 
 **RLS is the contract: `pnpm test:rls` must be green before building UI on any table.**
 
+### Verifying RLS without a hosted Supabase project
+
+If you don't have a Supabase project yet, you can still prove the policies are
+correct against a plain local Postgres (no Docker, no cloud):
+
+```bash
+# with any local Postgres 14+ running, as a superuser connection:
+LOCAL_PG_URL=postgres://postgres@127.0.0.1:5432/postgres \
+  pnpm --filter @ajh/db test:rls:local
+```
+
+This applies a Supabase compatibility shim (`packages/db/scripts/local-supabase-shim.sql`
+— recreates the anon/authenticated/service_role roles, the `auth` schema and
+`auth.uid()`/`auth.role()` reading `request.jwt.claims`), runs the **real
+migrations**, seeds two tenants and asserts an allowed/denied matrix by
+switching roles exactly as PostgREST does. It creates/drops a throwaway
+`ajh_rls_test` database. As of the last run: **46/46 assertions pass on
+Postgres 16.2.**
+
 Seeded logins (password = `SEED_USER_PASSWORD`, magic links work too):
 `harry@ajhwebsitemanagement.com` (agency_admin), `alexander@…`, `jamie@…` (agency_member),
 `owner@blushandco.example`, `owner@willowtherapy.example` (client owners).

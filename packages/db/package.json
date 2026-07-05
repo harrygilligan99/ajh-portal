@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "migrate": "tsx scripts/migrate.ts",
     "seed": "tsx scripts/seed.ts",
-    "test:rls": "tsx scripts/rls-test.ts"
+    "test:rls": "tsx scripts/rls-test.ts",
+    "test:rls:local": "tsx scripts/local-rls-verify.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",

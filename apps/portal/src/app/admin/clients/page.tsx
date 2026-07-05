@@ -8,20 +8,12 @@ import {
   Card,
   CardContent,
 } from "@ajh/ui";
-import type { ClientStatus } from "@ajh/db";
 import { requireAgency } from "@/lib/auth";
+import { CLIENT_STATUS_LABEL, CLIENT_STATUS_VARIANT } from "@/lib/client-status";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { PageHeader } from "@/components/page-header";
 
 export const metadata: Metadata = { title: "Clients" };
-
-const STATUS_VARIANT: Record<ClientStatus, "default" | "secondary" | "outline" | "success" | "destructive"> = {
-  lead: "outline",
-  onboarding: "secondary",
-  active: "success",
-  paused: "outline",
-  archived: "destructive",
-};
 
 export default async function AdminClientsPage({
   searchParams,
@@ -78,13 +70,17 @@ export default async function AdminClientsPage({
                 </thead>
                 <tbody>
                   {clients.map((client) => (
-                    <tr key={client.id} className="border-b last:border-0">
+                    <tr key={client.id} className="border-b last:border-0 hover:bg-muted/40">
                       <td className="px-4 py-3">
-                        <p className="font-medium">{client.name}</p>
-                        <p className="text-xs text-muted-foreground">{client.slug}</p>
+                        <Link href={`/admin/clients/${client.id}`} className="block">
+                          <p className="font-medium hover:underline">{client.name}</p>
+                          <p className="text-xs text-muted-foreground">{client.slug}</p>
+                        </Link>
                       </td>
                       <td className="px-4 py-3">
-                        <Badge variant={STATUS_VARIANT[client.status]}>{client.status}</Badge>
+                        <Badge variant={CLIENT_STATUS_VARIANT[client.status]}>
+                          {CLIENT_STATUS_LABEL[client.status]}
+                        </Badge>
                       </td>
                       <td className="px-4 py-3 capitalize">{client.plan}</td>
                       <td className="px-4 py-3">{client.marketing_plan ? "Yes" : "—"}</td>
