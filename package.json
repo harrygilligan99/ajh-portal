@@ -1,0 +1,23 @@
+{
+  "name": "ajh-portal",
+  "private": true,
+  "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "typecheck": "turbo run typecheck",
+    "registry": "tsx scripts/generate-registry.ts",
+    "db:migrate": "pnpm --filter @ajh/db migrate",
+    "db:seed": "pnpm --filter @ajh/db seed",
+    "test:rls": "pnpm --filter @ajh/db test:rls"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.2",
+    "zod": "^4.0.0"
+  }
+}
